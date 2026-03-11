@@ -1305,6 +1305,11 @@ window.addEventListener('pageshow', (e) => {
 });
 // Also re-fetch on focus (catches iOS PWA edge cases)
 window.addEventListener('focus', refreshCategories);
+
+// Register service worker for PWA cache control (network-first)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>
