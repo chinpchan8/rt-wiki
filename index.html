@@ -313,7 +313,7 @@ select.meta-sel:focus { border-color: var(--red); }
     const CORS_HEADERS = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-notion-token, x-target, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-notion-token, x-notion-db, x-target, Authorization',
       'Access-Control-Max-Age': '86400',
     };
 
@@ -351,7 +351,7 @@ select.meta-sel:focus { border-color: var(--red); }
           },
         });
       } else if (target === 'notion-db') {
-        // Test database access
+        // Fetch database schema
         const notionToken = request.headers.get('x-notion-token');
         const dbId = request.headers.get('x-notion-db');
         upstreamResp = await fetch('https://api.notion.com/v1/databases/' + dbId, {
@@ -360,6 +360,19 @@ select.meta-sel:focus { border-color: var(--red); }
             'Authorization': 'Bearer ' + notionToken,
             'Notion-Version': '2022-06-28',
           },
+        });
+      } else if (target === 'notion-db-query') {
+        // Query database pages to get actual category values in use
+        const notionToken = request.headers.get('x-notion-token');
+        const dbId = request.headers.get('x-notion-db');
+        upstreamResp = await fetch('https://api.notion.com/v1/databases/' + dbId + '/query', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + notionToken,
+            'Notion-Version': '2022-06-28',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ page_size: 100 }),
         });
       } else {
         const apiKey = request.headers.get('x-api-key');
@@ -606,7 +619,10 @@ async function fetchNotionCategories() {
   const px = localStorage.getItem('rt_proxy') || document.getElementById('proxyUrl').value.trim();
   if (!nt || !nd) return null;
 
+  const allCats = new Set();
+
   try {
+    // 1) Get schema-defined options
     let res;
     if (px) {
       res = await fetch(px.replace(/\/$/, ''), {
@@ -620,11 +636,39 @@ async function fetchNotionCategories() {
         headers: { 'Authorization': 'Bearer ' + nt, 'Notion-Version': '2022-06-28' }
       });
     }
-    if (!res.ok) return null;
-    const db = await res.json();
-    const catProp = db.properties?.Category;
-    if (catProp && catProp.type === 'select' && catProp.select?.options) {
-      notionCategories = catProp.select.options.map(o => o.name);
+    if (res.ok) {
+      const db = await res.json();
+      const catProp = db.properties?.Category;
+      if (catProp?.type === 'select' && catProp.select?.options) {
+        catProp.select.options.forEach(o => allCats.add(o.name));
+      }
+    }
+
+    // 2) Query actual pages to get categories in use (catches dynamically-created ones)
+    let res2;
+    if (px) {
+      res2 = await fetch(px.replace(/\/$/, ''), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-target': 'notion-db-query', 'x-notion-token': nt, 'x-notion-db': nd },
+        body: JSON.stringify({ page_size: 100 })
+      });
+    } else {
+      res2 = await fetch('https://api.notion.com/v1/databases/' + nd + '/query', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + nt, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ page_size: 100 })
+      });
+    }
+    if (res2.ok) {
+      const data = await res2.json();
+      (data.results || []).forEach(page => {
+        const cat = page.properties?.Category?.select?.name;
+        if (cat) allCats.add(cat);
+      });
+    }
+
+    if (allCats.size > 0) {
+      notionCategories = [...allCats].sort();
       return notionCategories;
     }
   } catch(e) {}
