@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="RT-WIKI">
 <meta name="theme-color" content="#0a0a0b">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>RT-WIKI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -512,13 +515,7 @@ select.meta-sel:focus { border-color: var(--red); }
         <div class="meta-item">
           <div class="prev-label">Category</div>
           <select class="meta-sel" id="prevCategory">
-            <option>Recon</option><option>OSINT</option><option>Initial Access</option>
-            <option>Execution</option><option>Persistence</option><option>PrivEsc</option>
-            <option>Defense Evasion</option><option>Credential Access</option><option>Discovery</option>
-            <option>Lateral Movement</option><option>Collection</option><option>Exfil</option>
-            <option>C2</option><option>AD</option><option>Cloud</option><option>Web App</option>
-            <option>Mobile</option><option>Social Engineering</option><option>Malware</option>
-            <option>Forensics</option><option>Misc</option>
+            <option>Loading...</option>
           </select>
         </div>
         <div class="meta-item">
@@ -1287,22 +1284,27 @@ if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone) {
   document.getElementById('pwaHint').classList.add('visible');
 }
 
+const DEFAULT_CATEGORIES = ['Recon','OSINT','Initial Access','Execution','Persistence','PrivEsc','Defense Evasion','Credential Access','Discovery','Lateral Movement','Collection','Exfil','C2','AD','Cloud','Web App','Mobile','Social Engineering','Malware','Forensics','Misc'];
+
+function refreshCategories() {
+  notionCategories = null;
+  fetchNotionCategories().then(cats => {
+    populateCategoryDropdown(cats || DEFAULT_CATEGORIES);
+  });
+}
+
 loadConfig();
-// Pre-fetch Notion categories on load
-fetchNotionCategories().then(cats => { if (cats) populateCategoryDropdown(cats); });
+// Fetch Notion categories on load, fallback to defaults
+refreshCategories();
 // Re-fetch when PWA resumes from background (iOS aggressively suspends/caches)
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    notionCategories = null; // bust cache
-    fetchNotionCategories().then(cats => { if (cats) populateCategoryDropdown(cats); });
-  }
+  if (document.visibilityState === 'visible') refreshCategories();
 });
 window.addEventListener('pageshow', (e) => {
-  if (e.persisted) {
-    notionCategories = null;
-    fetchNotionCategories().then(cats => { if (cats) populateCategoryDropdown(cats); });
-  }
+  if (e.persisted) refreshCategories();
 });
+// Also re-fetch on focus (catches iOS PWA edge cases)
+window.addEventListener('focus', refreshCategories);
 </script>
 </body>
 </html>
