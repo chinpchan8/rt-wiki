@@ -1290,6 +1290,19 @@ if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone) {
 loadConfig();
 // Pre-fetch Notion categories on load
 fetchNotionCategories().then(cats => { if (cats) populateCategoryDropdown(cats); });
+// Re-fetch when PWA resumes from background (iOS aggressively suspends/caches)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    notionCategories = null; // bust cache
+    fetchNotionCategories().then(cats => { if (cats) populateCategoryDropdown(cats); });
+  }
+});
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) {
+    notionCategories = null;
+    fetchNotionCategories().then(cats => { if (cats) populateCategoryDropdown(cats); });
+  }
+});
 </script>
 </body>
 </html>
